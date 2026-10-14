@@ -27,6 +27,8 @@ A continuous flying Wither printer addon for [Meteor Client](https://meteorclien
 - Automatic mid-air restock: places an ender chest + supply shulker, takes only soul sand/soul soil and skulls in the real 4:3 recipe ratio
 - Optional automatic naming with renamed name tags (InventoryCycle or a specific name)
 - Meteor Elytra Fly speed management with separate placing and travelling speeds
+- Pauses automatically while Auto Eat / Auto Gap / manual eating is active and resumes afterwards
+- Tamper-evident lifetime wither counter per server; `.witherstats` prints the counts plus the running jar's SHA-256 to match against the GitHub release digest
 - Peaceful-mode guard and safe abort on failed restock stages
 
 ## Requirements

@@ -1,3 +1,10 @@
+## 1.2.0
+
+- Added `pause-while-eating` (General, default ON): all placement, restock, and naming actions pause while Meteor Auto Eat, Auto Gap, or manual eating is active, then resume automatically where they stopped. Eating can no longer be cancelled by the printer's hotbar swaps and placements.
+- Added lifetime per-server wither statistics: every accepted skull placement is folded into a tamper-evident ledger (`wither-printer-stats.bin` in the Minecraft directory) protected by a per-server chain hash and a whole-file SHA-256 digest; a hand-edited file is reported as corrupted instead of trusted.
+- Added the `.witherstats` (`.ws`) command: prints withers placed, skulls placed, server, player name and UUID, plus the SHA-256 of the jar currently running so it can be matched against the digest GitHub publishes for the official release jar.
+- The module HUD info string now shows `eating` while the eating pause is active.
+
 ## Minecraft 26.2 port (mod version 1.1.10)
 
 - Retargeted the project from Minecraft 1.21.11 / Java 21 / Meteor 1.21.11 to Minecraft 26.2 / Java 25 / Meteor 26.2.
