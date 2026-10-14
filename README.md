@@ -4,6 +4,12 @@ A continuous flying Wither printer addon for [Meteor Client](https://meteorclien
 
 Made by [Bonggerz](https://github.com/Bonggerz)
 
+## Demo
+
+<video src="wither.mp4" controls muted></video>
+
+[Download the demo video](wither.mp4) if the player does not render.
+
 ## How to use
 
 1. Use default settings
