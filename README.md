@@ -12,6 +12,12 @@ A continuous flying Wither printer for Meteor Client. v1.1.10 restores the Motio
 4. Put soul sand and wither skulls in your inv/hotbar
 5. Activate the module
 
+## Demo
+
+<video src="https://raw.githubusercontent.com/ComicSquid74273/Wither-printer/main/wither.mp4" controls muted></video>
+
+[Open the demo video on GitHub](https://github.com/ComicSquid74273/Wither-printer/blob/main/wither.mp4) if the player does not render.
+
 ## v1.1.10 smart material-only restocking
 
 - Restored `direction-mode` under **General** with `Motion` as the default and `Look` as the alternative.
