@@ -6,3 +6,6 @@ run/
 out/
 
 .gradle-dist/
+
+# IDE build output
+bin/
