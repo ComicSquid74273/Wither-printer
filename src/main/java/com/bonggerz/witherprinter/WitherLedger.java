@@ -68,7 +68,6 @@ public final class WitherLedger {
     public synchronized void recordSkulls(String server, int count) {
         if (count <= 0) return;
         ensureLoaded();
-        if (corrupted) return;
 
         Entry entry = entries.computeIfAbsent(server, s -> new Entry());
         entry.skulls += count;
@@ -78,7 +77,6 @@ public final class WitherLedger {
 
     public synchronized void recordWither(String server) {
         ensureLoaded();
-        if (corrupted) return;
 
         Entry entry = entries.computeIfAbsent(server, s -> new Entry());
         entry.withers += 1;
@@ -131,17 +129,56 @@ public final class WitherLedger {
                     Entry entry = new Entry();
                     entry.skulls = in.readLong();
                     entry.withers = in.readLong();
-                    if (entry.skulls < 0 || entry.withers < 0 || entry.withers * 3 < entry.skulls) {
+                    if (entry.skulls < 0 || entry.withers < 0) {
                         throw new IOException("unreasonable counters");
                     }
                     in.readFully(entry.chain);
-                    entries.put(server, entry);
+
+                    // Skulls of builds that never completed (aborts, mid-build
+                    // disconnects) are legitimately counted, so skulls may exceed
+                    // 3x withers. Legacy per-proxy keys are folded into their
+                    // root domain so one server total survives proxy changes.
+                    String normalized = normalizeServerKey(server);
+                    Entry merged = entries.get(normalized);
+                    if (merged == null) {
+                        entries.put(normalized, entry);
+                    } else {
+                        merged.skulls += entry.skulls;
+                        merged.withers += entry.withers;
+                    }
                 }
             }
         } catch (IOException | RuntimeException e) {
             entries.clear();
             corrupted = true;
+            // Recording continues in memory and the next save overwrites the
+            // rejected file, so one bad byte can no longer silently kill the
+            // counter forever.
         }
+    }
+
+    /**
+     * @return the root domain of a server address (mumbai.6b6t.org and
+     * play.6b6t.org both aggregate to 6b6t.org), or the address unchanged
+     * when it is an IP literal, "singleplayer", or "unknown".
+     */
+    private static String normalizeServerKey(String raw) {
+        if (raw == null || raw.isEmpty()) return "unknown";
+        if ("singleplayer".equals(raw) || "unknown".equals(raw)) return raw;
+
+        String host = raw;
+        int slash = host.indexOf('/');
+        if (slash > 0) host = host.substring(0, slash);
+
+        int colon = host.indexOf(':');
+        if (colon > 0 && host.indexOf(':') == colon) host = host.substring(0, colon);
+
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        if (host.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) return host;
+
+        String[] parts = host.split("\\.");
+        if (parts.length <= 2) return host;
+        return parts[parts.length - 2] + "." + parts[parts.length - 1];
     }
 
     private synchronized void save() {
@@ -198,7 +235,7 @@ public final class WitherLedger {
     public static String currentServerKey() {
         try {
             Minecraft mc = Minecraft.getInstance();
-            if (mc.getCurrentServer() != null) return mc.getCurrentServer().ip;
+            if (mc.getCurrentServer() != null) return normalizeServerKey(mc.getCurrentServer().ip);
             if (mc.hasSingleplayerServer()) return "singleplayer";
         } catch (Throwable ignored) {
             // Fall through to the neutral key.
