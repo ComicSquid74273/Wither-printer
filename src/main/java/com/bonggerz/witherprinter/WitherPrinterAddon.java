@@ -3,6 +3,7 @@ package com.bonggerz.witherprinter;
 import com.bonggerz.witherprinter.modules.WitherPrinter;
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
+import meteordevelopment.meteorclient.commands.Commands;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import org.slf4j.Logger;
 
@@ -13,6 +14,7 @@ public final class WitherPrinterAddon extends MeteorAddon {
     public void onInitialize() {
         LOG.info("Initializing Wither Printer");
         Modules.get().add(new WitherPrinter());
+        Commands.add(new WitherStatsCommand());
     }
 
     @Override

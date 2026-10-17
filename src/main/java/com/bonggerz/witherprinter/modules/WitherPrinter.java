@@ -1,5 +1,6 @@
 package com.bonggerz.witherprinter.modules;
 
+import com.bonggerz.witherprinter.WitherLedger;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
@@ -12,6 +13,8 @@ import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.movement.elytrafly.ElytraFly;
+import meteordevelopment.meteorclient.systems.modules.player.AutoEat;
+import meteordevelopment.meteorclient.systems.modules.player.AutoGap;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
@@ -19,6 +22,7 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -116,6 +120,13 @@ public final class WitherPrinter extends Module {
     private final Setting<Boolean> stopWhenEmpty = sgGeneral.add(new BoolSetting.Builder()
         .name("stop-when-empty")
         .description("Disables the module when fewer than 4 soul blocks or 3 skulls remain.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Boolean> pauseWhileEating = sgGeneral.add(new BoolSetting.Builder()
+        .name("pause-while-eating")
+        .description("Pauses all placement, restock, and naming actions while Auto Eat, Auto Gap, or manual eating is active. Resumes automatically once eating finishes.")
         .defaultValue(true)
         .build()
     );
@@ -413,6 +424,11 @@ public final class WitherPrinter extends Module {
     private BlockPos lastCompletedBase;
     private int completed;
     private boolean outOfMaterialsReported;
+    private boolean eatingPause;
+
+    // Skull positions already folded into the lifetime ledger for the
+    // current build, so retries and re-observations never double-count.
+    private final Set<BlockPos> countedSkullPositions = new HashSet<>();
 
     // Wither naming state. The build plan is deliberately kept alive until
     // naming finishes so Elytra Fly remains at placing-speed and the exact
@@ -507,10 +523,54 @@ public final class WitherPrinter extends Module {
 
     @Override
     public String getInfoString() {
-        if (restockState != RestockState.Idle) return completed + " | restock:" + restockState.label;
-        if (namingState != NamingState.Idle) return completed + " | naming";
-        if (plan == null) return Integer.toString(completed);
-        return completed + " | " + stepName();
+        String base;
+        if (restockState != RestockState.Idle) base = completed + " | restock:" + restockState.label;
+        else if (namingState != NamingState.Idle) base = completed + " | naming";
+        else if (plan == null) base = Integer.toString(completed);
+        else base = completed + " | " + stepName();
+        return eatingPause ? base + " | eating" : base;
+    }
+
+    /**
+     * @return true while Meteor Auto Eat / Auto Gap is eating or the player is
+     * manually using a food item. Slot swaps and world interactions would
+     * otherwise cancel the item use.
+     */
+    private boolean isEatingNow() {
+        AutoEat autoEat = Modules.get().get(AutoEat.class);
+        if (autoEat != null && autoEat.isActive() && autoEat.eating) return true;
+
+        AutoGap autoGap = Modules.get().get(AutoGap.class);
+        if (autoGap != null && autoGap.isEating()) return true;
+
+        if (mc.player != null && mc.player.isUsingItem()) {
+            ItemStack useItem = mc.player.getUseItem();
+            if (!useItem.isEmpty() && useItem.get(DataComponents.FOOD) != null) return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Folds every newly observed accepted skull block of the current build
+     * into the lifetime ledger. Each skull position is counted at most once
+     * per build regardless of retries or re-observations.
+     */
+    private void observeSkullConfirmations() {
+        if (plan == null) return;
+
+        int newlyConfirmed = 0;
+        for (BlockPos pos : plan.skullPositions()) {
+            if (countedSkullPositions.contains(pos)) continue;
+            if (isWitherSkull(pos)) {
+                countedSkullPositions.add(pos);
+                newlyConfirmed++;
+            }
+        }
+
+        if (newlyConfirmed > 0) {
+            WitherLedger.get().recordSkulls(WitherLedger.currentServerKey(), newlyConfirmed);
+        }
     }
 
     @EventHandler
@@ -519,6 +579,16 @@ public final class WitherPrinter extends Module {
 
         syncManagedElytraSpeed();
         syncAutoWalk();
+
+        // Eating must never be cancelled by a hotbar swap or placement, so the
+        // entire action pipeline pauses for the tick. Every timer in this
+        // module only advances below this point, so the build resumes exactly
+        // where it stopped once eating ends.
+        if (pauseWhileEating.get() && isEatingNow()) {
+            eatingPause = true;
+            return;
+        }
+        eatingPause = false;
 
         if (mc.level.getDifficulty() == Difficulty.PEACEFUL) {
             error("Withers cannot spawn in Peaceful difficulty. Disabling Wither Printer.");
@@ -582,6 +652,8 @@ public final class WitherPrinter extends Module {
      * phase immediately. Any actual placement burst ends the current tick.
      */
     private boolean attemptBurstStep() {
+        observeSkullConfirmations();
+
         if (burstPhase <= 0) {
             return handleBurstNormalPhase(
                 new BlockPos[] { plan.soulPositions()[0], plan.soulPositions()[1] },
@@ -907,6 +979,8 @@ public final class WitherPrinter extends Module {
      * advanced step; false when this tick should end.
      */
     private boolean attemptStep() {
+        observeSkullConfirmations();
+
         if (step < 4) return handleNormalStep(plan.soulPositions()[step], MaterialKind.Soul);
 
         // Never allow a skull to be sent unless all 4 soul blocks are
@@ -1402,6 +1476,7 @@ public final class WitherPrinter extends Module {
     private void completeCurrentWither() {
         if (plan != null) lastCompletedBase = plan.base();
         completed++;
+        WitherLedger.get().recordWither(WitherLedger.currentServerKey());
         resetCurrentPlan();
         syncManagedElytraSpeed();
         syncAutoWalk();
@@ -3273,6 +3348,7 @@ public final class WitherPrinter extends Module {
         finalSpawnWait = 0;
         finalSkullSent = false;
         finalSkullObservedPlaced = false;
+        countedSkullPositions.clear();
         clearFinalWitherBaseline();
     }
 

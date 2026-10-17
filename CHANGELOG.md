@@ -1,3 +1,16 @@
+## 1.2.1
+
+- Fixed the lifetime counter showing 0 after a restart: the loader rejected the whole stats file whenever recorded skulls exceeded 3x completed withers, but skulls from builds that never completed (aborts, mid-build disconnects, toggling the module off) are legitimately counted. That validation is gone.
+- Server stats aggregate by root domain: `mumbai.6b6t.org` and `play.6b6t.org` both count toward one `6b6t.org` total. Legacy per-proxy entries are merged automatically on load. Direct-IP and singleplayer keys are unchanged.
+- A genuinely unreadable stats file now only warns for that session; recording continues in memory and the next save overwrites the broken file instead of silently disabling the counter.
+
+## 1.2.0
+
+- Added `pause-while-eating` (General, default ON): all placement, restock, and naming actions pause while Meteor Auto Eat, Auto Gap, or manual eating is active, then resume automatically where they stopped. Eating can no longer be cancelled by the printer's hotbar swaps and placements.
+- Added lifetime per-server wither statistics: every accepted skull placement is folded into a tamper-evident ledger (`wither-printer-stats.bin` in the Minecraft directory) protected by a per-server chain hash and a whole-file SHA-256 digest; a hand-edited file is reported as corrupted instead of trusted.
+- Added the `.witherstats` (`.ws`) command: prints withers placed, skulls placed, server, player name and UUID, plus the SHA-256 of the jar currently running so it can be matched against the digest GitHub publishes for the official release jar.
+- The module HUD info string now shows `eating` while the eating pause is active.
+
 ## 1.1.10
 
 - Restored the `direction-mode` GUI setting with `Motion` as the default and `Look` as the alternative.
