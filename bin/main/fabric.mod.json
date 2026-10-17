@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "bonggerz-wither-printer",
+  "version": "${version}",
+  "name": "Wither Printer",
+  "description": "Continuous flying wither printer with automatic Elytra Fly, smart 4:3 Soul/Skull Ender Chest restocking, and optional renamed Name Tag cycling for Meteor Client.",
+  "authors": [
+    "Bonggerz"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "meteor": [
+      "com.bonggerz.witherprinter.WitherPrinterAddon"
+    ]
+  },
+  "custom": {
+    "meteor-client:color": "95,80,110"
+  },
+  "depends": {
+    "java": ">=${jdk_version}",
+    "minecraft": "${mc_version}",
+    "meteor-client": "*"
+  }
+}
